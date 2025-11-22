@@ -30,7 +30,7 @@ function App() {
 
   // Fallback visible Home page (no router required)
   return (
-    <div className="min-h-screen bg-light text-dark">
+    <div className="min-h-screen bg-background text-text">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6 p-3 rounded-md bg-yellow-50 border">Router not available — showing fallback Home.</div>
         <Home />

@@ -3,6 +3,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import Home from '../pages/Home';
 import Search from '../pages/Search';
+import Places from '../pages/Places';
 import UserLogin from '../pages/UserLogin';
 import BusinessLogin from '../pages/BusinessLogin';
 import About from '../pages/About';
@@ -17,6 +18,7 @@ export default function createAppRouter() {
       children: [
         { index: true, element: <Home /> },
         { path: 'search', element: <Search /> },
+        { path: 'places', element: <Places /> },
         { path: 'login/user', element: <UserLogin /> },
         { path: 'login/business', element: <BusinessLogin /> },
         { path: 'about', element: <About /> },
