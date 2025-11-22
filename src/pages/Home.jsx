@@ -43,10 +43,10 @@ export default function Home() {
   if (loading) return <div className="text-center py-8">Loading...</div>;
 
   return (
-    <div>
+    <div className="">
       <Hero />
 
-      <section className="container mx-auto px-4 py-8">
+      <section className="container mx-auto px-4 py-8 ">
         <h2 className="text-2xl font-semibold mb-4">Nearby Places</h2>
         <div className="flex flex-wrap gap-3 mb-8 relative z-10">
           {['All', 'Hospitals', 'Salons', 'Banks', 'Clinics', 'Restaurants'].map(filter => (

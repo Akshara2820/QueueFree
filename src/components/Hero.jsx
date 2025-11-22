@@ -28,7 +28,9 @@ export default function Hero() {
             <div className="relative flex-1">
               <input
                 name="search"
-                className="w-full px-4 py-3 pl-10 text-base border-0 focus:outline-none focus:ring-0 bg-transparent"
+                className="w-full px-4 py-3 pl-10 text-base border-0 
+                // focus:outline-none focus:ring-0 
+                bg-transparent"
                 placeholder="Search a place or address"
                 style={{ pointerEvents: 'auto' }}
               />
@@ -36,7 +38,13 @@ export default function Hero() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
-            <button className="px-6 py-3 bg-primary-500 text-white text-base font-medium hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-opacity-75 transition-colors">
+            <button className="px-6 py-3 bg-primary-500 text-white text-base font-medium 
+            hover:bg-primary-600 
+            // focus:outline-none 
+            // focus-visible:ring-2 
+            // focus-visible:ring-primary-500 
+            // focus-visible:ring-opacity-75 
+            transition-colors">
               Search
             </button>
           </form>
