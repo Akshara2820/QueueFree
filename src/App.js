@@ -1,5 +1,6 @@
 import './App.css';
 import Home from './pages/Home';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   // Attempt to load RouterProvider and router at runtime. If react-router-dom
@@ -25,7 +26,12 @@ function App() {
 
   if (RouterProvider && router) {
     const RP = RouterProvider;
-    return <RP router={router} />;
+    return (
+      <>
+        <RP router={router} />
+        <Toaster position="top-right" />
+      </>
+    );
   }
 
   // Fallback visible Home page (no router required)
@@ -35,6 +41,7 @@ function App() {
         <div className="mb-6 p-3 rounded-md bg-yellow-50 border">Router not available — showing fallback Home.</div>
         <Home />
       </div>
+      <Toaster position="top-right" />
     </div>
   );
 }

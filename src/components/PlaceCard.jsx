@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { submitReport, bookAppointment } from '../services/firestore';
 import { auth } from '../firebase';
+import toast from 'react-hot-toast';
 
 export default function PlaceCard({ place }) {
     const { queueInfo } = place;
@@ -36,7 +37,7 @@ export default function PlaceCard({ place }) {
         }
     };
 
-    const { waitText, queueText, badge, badgeColor, icon } = getDisplayInfo();
+    const { waitText, badge, badgeColor, icon } = getDisplayInfo();
 
     // Get border color based on crowd level
     const getBorderColor = () => {
@@ -54,17 +55,17 @@ export default function PlaceCard({ place }) {
         const mockUser = localStorage.getItem('mockUser');
         const currentUser = auth.currentUser || (mockUser ? JSON.parse(mockUser) : null);
         if (!currentUser) {
-            alert('Please login to report crowd level');
+            toast.error('Please login to report crowd level');
             return;
         }
         if (!reportLevel) return;
         try {
             await submitReport(place.id, reportLevel, currentUser.uid);
-            alert('Report submitted!');
+            toast.success('Report submitted successfully!');
             setShowReport(false);
         } catch (error) {
             console.error('Error submitting report:', error);
-            alert('Report submitted (demo mode)!');
+            toast.success('Report submitted (demo mode)!');
             setShowReport(false);
         }
     };
@@ -73,17 +74,17 @@ export default function PlaceCard({ place }) {
         const mockUser = localStorage.getItem('mockUser');
         const currentUser = auth.currentUser || (mockUser ? JSON.parse(mockUser) : null);
         if (!currentUser) {
-            alert('Please login to book an appointment');
+            toast.error('Please login to book an appointment');
             return;
         }
         const time = prompt('Enter appointment time (e.g., 2023-12-01 10:00)');
         if (!time) return;
         try {
             await bookAppointment(place.id, currentUser.uid, time);
-            alert('Appointment booked!');
+            toast.success('Appointment booked successfully!');
         } catch (error) {
             console.error('Error booking:', error);
-            alert('Appointment booked (demo mode)!');
+            toast.success('Appointment booked (demo mode)!');
         }
     };
 
@@ -95,7 +96,7 @@ export default function PlaceCard({ place }) {
                     <h3 className="text-base font-medium text-gray-900 truncate mb-1">
                         {place.name}
                     </h3>
-                    <p className="text-sm text-gray-600 truncate">{place.type} • {place.distance}</p>
+                    <p className="text-sm text-gray-600 truncate">{place.type} • {place.distance}km away</p>
                 </div>
 
                 <div className="text-right flex-shrink-0">

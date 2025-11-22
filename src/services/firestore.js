@@ -1,11 +1,54 @@
 import { db } from '../firebase';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
+import { calculateDistance } from '../utils/formatters';
 
 // Get all places
 export const getPlaces = async () => {
   const placesRef = collection(db, 'places');
   const snapshot = await getDocs(placesRef);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+// Fetch nearby places with proximity filtering (Firestore approach)
+// Since Firestore doesn't support native geographic queries, we:
+// 1. Fetch all places from Firestore
+// 2. Calculate distance using Haversine formula
+// 3. Filter by radius and sort by distance
+export const fetchNearbyPlaces = async (userLocation, radiusKm = 5) => {
+  try {
+    // Fetch all places from Firestore (assuming we have a places collection)
+    const placesRef = collection(db, 'places');
+    const snapshot = await getDocs(placesRef);
+
+    const allPlaces = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Filter places within radius and calculate distances
+    const nearbyPlaces = allPlaces
+      .filter(place => {
+        // Assuming places have lat/lng fields in Firestore
+        if (!place.lat || !place.lng) return false;
+
+        const distance = calculateDistance(
+          userLocation.lat,
+          userLocation.lng,
+          place.lat,
+          place.lng
+        );
+
+        // Add distance to place object
+        place.distance = distance;
+        return distance <= radiusKm;
+      })
+      .sort((a, b) => a.distance - b.distance); // Sort by distance
+
+    return nearbyPlaces;
+  } catch (error) {
+    console.error('Error fetching nearby places from Firestore:', error);
+    throw error;
+  }
 };
 
 // Check if business is registered
