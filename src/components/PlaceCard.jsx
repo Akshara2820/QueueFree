@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { submitReport, bookAppointment } from '../services/firestore';
+import { submitCrowdReport } from '../services/crowdService';
 import { auth } from '../firebase';
 import toast from 'react-hot-toast';
 
 export default function PlaceCard({ place }) {
-    const { queueInfo } = place;
-    const [showReport, setShowReport] = useState(false);
-    const [reportLevel, setReportLevel] = useState('');
+      const { queueInfo, crowdData } = place;
+     const [showReport, setShowReport] = useState(false);
+     const [reportLevel, setReportLevel] = useState('');
+
 
     const getDisplayInfo = () => {
         if (queueInfo.type === 'real') {
@@ -60,13 +62,20 @@ export default function PlaceCard({ place }) {
         }
         if (!reportLevel) return;
         try {
-            await submitReport(place.id, reportLevel, currentUser.uid);
-            toast.success('Report submitted successfully!');
+            // Convert report level to the format expected by crowd service
+            const crowdLevelMap = {
+                'low': 'low',
+                'medium': 'moderate',
+                'high': 'high'
+            };
+
+            await submitCrowdReport(place.id, currentUser.uid, crowdLevelMap[reportLevel] || reportLevel);
+            toast.success('Crowd report submitted successfully!');
             setShowReport(false);
+            setReportLevel('');
         } catch (error) {
-            console.error('Error submitting report:', error);
-            toast.success('Report submitted (demo mode)!');
-            setShowReport(false);
+            console.error('Error submitting crowd report:', error);
+            toast.error('Failed to submit crowd report. Please try again.');
         }
     };
 
@@ -89,56 +98,143 @@ export default function PlaceCard({ place }) {
     };
 
     return (
-        <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow duration-200 cursor-pointer border-l-4 ${getBorderColor()}`}>
-            {/* Primary accent gradient */}
-            <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-medium text-gray-900 truncate mb-1">
-                        {place.name}
-                    </h3>
-                    <p className="text-sm text-gray-600 truncate">{place.type} • {place.distance}km away</p>
-                </div>
+        <div className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 overflow-hidden group">
+            {/* Card Header with subtle background */}
+            <div className="p-4 pb-3">
+                {/* Place Name and Type */}
+                <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-900 truncate group-hover:text-primary-600 transition-colors">
+                            {place.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 truncate mt-0.5">
+                            {place.type}
+                        </p>
+                        {place.address && place.address !== 'Address not available' && (
+                            <p
+                                className="text-xs text-gray-500 truncate mt-1 cursor-pointer hover:text-blue-600 transition-colors"
+                                onClick={() => {
+                                    const { lat, lng } = place.location;
+                                    const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+                                    window.open(mapsUrl, '_blank');
+                                }}
+                                title="Click to open in Google Maps"
+                            >
+                                📍 {place.address}
+                            </p>
+                        )}
+                    </div>
 
-                <div className="text-right flex-shrink-0">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Wait</div>
-                    <div className="text-lg font-semibold text-gray-900">
-                        {waitText}
+                    {/* Distance Badge */}
+                    <div className="flex-shrink-0">
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                            📍 {place.distance}km
+                        </span>
                     </div>
                 </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${badgeColor}`}>
-                        <span className="mr-1">{icon}</span>
-                        {badge}
-                    </span>
-                    {/* Open/Closed Status */}
-                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${
-                        place.business_status === 'OPERATIONAL'
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
-                    }`}>
-                        <span className="mr-1">
-                            {place.business_status === 'OPERATIONAL' ? '🟢' : '🔴'}
-                        </span>
-                        {place.business_status === 'OPERATIONAL' ? 'Open' : 'Closed'}
-                    </span>
+                {/* Rating and Status Row */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                        {/* Rating */}
+                        {place.rating > 0 && (
+                            <div className="flex items-center gap-1">
+                                <div className="flex">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <span
+                                            key={star}
+                                            className={`text-sm ${star <= Math.floor(place.rating) ? 'text-yellow-400' : star - 0.5 <= place.rating ? 'text-yellow-200' : 'text-gray-300'}`}
+                                        >
+                                            ★
+                                        </span>
+                                    ))}
+                                </div>
+                                <span className="text-xs text-gray-500 ml-1">{place.rating}</span>
+                            </div>
+                        )}
+
+                        {/* Status & Hours in one line */}
+                        <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${
+                                place.business_status === 'OPERATIONAL'
+                                    ? 'bg-green-50 text-green-700 border border-green-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}>
+                                {place.business_status === 'OPERATIONAL' ? '🟢 Open' : '🔴 Closed'}
+                            </span>
+
+                            {/* Show hours only if meaningful (not static fallbacks) */}
+                            {place.opening_hours &&
+                             place.opening_hours !== 'Hours not specified' &&
+                             place.opening_hours !== 'Hours available' &&
+                             !place.opening_hours.includes('Typically') &&
+                             place.opening_hours !== '24/7' && (
+                                <span className="text-xs text-gray-600">
+                                    🕐 {place.opening_hours}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Wait Time */}
+                    <div className="text-right">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide">Wait Time</div>
+                        <div className="text-sm font-semibold text-gray-900">
+                            {place.business_status === 'OPERATIONAL' ? waitText : '-'}
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowReport(!showReport)}
-                        className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-opacity-75 rounded-lg border border-gray-200 transition-colors duration-200"
-                    >
-                        Report
-                    </button>
-                    <button
-                        onClick={handleBook}
-                        className="px-4 py-1.5 text-xs font-medium text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-opacity-75 rounded-lg transition-colors duration-200"
-                    >
-                        Join
-                    </button>
+                {/* Description */}
+                {place.description && (
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                        {place.description}
+                    </p>
+                )}
+
+                {/* Status Badge */}
+                <div className="flex items-center justify-between">
+                    {/* Show crowd badges for open places, closed status for closed places */}
+                    {place.business_status === 'OPERATIONAL' ? (
+                        crowdData ? (
+                            <span className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg shadow-sm ${
+                                crowdData.color === 'green' ? 'bg-green-50 text-green-700 border border-green-200' :
+                                crowdData.color === 'yellow' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                                crowdData.color === 'orange' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                                'bg-red-50 text-red-700 border border-red-200'
+                            }`}>
+                                <span className="mr-1.5">{crowdData.emoji}</span>
+                                {crowdData.level} Crowd
+                            </span>
+                        ) : (
+                            <span className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg ${badgeColor} shadow-sm`}>
+                                <span className="mr-1.5">{icon}</span>
+                                {badge}
+                            </span>
+                        )
+                    ) : (
+                        /* Closed places show closed badge */
+                        <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 border border-gray-200 shadow-sm">
+                            <span className="mr-1.5">⏰</span>
+                            Closed
+                        </span>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setShowReport(!showReport)}
+                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-opacity-75 rounded-lg border border-gray-200 transition-all duration-200 hover:shadow-sm"
+                        >
+                            Report
+                        </button>
+                        <button
+                            onClick={handleBook}
+                            className="px-4 py-1.5 text-xs font-medium text-white bg-primary-500 hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-opacity-75 rounded-lg transition-all duration-200 hover:shadow-sm"
+                        >
+                            Join Queue
+                        </button>
+                    </div>
                 </div>
             </div>
 

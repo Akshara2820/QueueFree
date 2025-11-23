@@ -1,6 +1,7 @@
 import { db } from '../firebase';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { calculateDistance } from '../utils/formatters';
+import { calculateWaitTime } from '../utils/waitTimeCalculator';
 
 // Get all places
 export const getPlaces = async () => {
@@ -88,19 +89,37 @@ export const submitReport = async (placeId, crowdLevel, userId) => {
   });
 };
 
-// Get AI prediction (simplified)
-export const getPrediction = (place) => {
-  const hour = new Date().getHours();
-  // Simple logic: busy during lunch/dinner, weekends
-  const day = new Date().getDay();
-  let busy = false;
-  if ((hour >= 11 && hour <= 14) || (hour >= 18 && hour <= 21) || day === 0 || day === 6) {
-    busy = true;
+// Get AI prediction using realistic wait time calculator
+export const getPrediction = (place, userLocation = { lat: 0, lng: 0 }) => {
+  try {
+    // Use the realistic wait time calculator
+    const waitTimeData = calculateWaitTime(place, userLocation);
+
+    // Convert to the expected format for backward compatibility
+    return {
+      level: waitTimeData.level.toLowerCase(), // 'low', 'medium', 'high'
+      waitTime: waitTimeData.label, // '12-25 min'
+      crowdLevel: waitTimeData.level, // 'Low', 'Medium', 'High'
+      emoji: waitTimeData.emoji, // 🟢🟡🔴
+      isPeakHours: waitTimeData.isPeakHours
+    };
+  } catch (error) {
+    console.warn('Error calculating wait time, using fallback:', error);
+    // Fallback to simple logic if calculator fails
+    const hour = new Date().getHours();
+    const day = new Date().getDay();
+    let busy = false;
+    if ((hour >= 11 && hour <= 14) || (hour >= 18 && hour <= 21) || day === 0 || day === 6) {
+      busy = true;
+    }
+    return {
+      level: busy ? 'high' : 'low',
+      waitTime: busy ? '20-30 mins' : '10-15 mins',
+      crowdLevel: busy ? 'High' : 'Low',
+      emoji: busy ? '🔴' : '🟢',
+      isPeakHours: busy
+    };
   }
-  return {
-    level: busy ? 'busy' : 'normal',
-    waitTime: busy ? '20-30 mins' : '10-15 mins'
-  };
 };
 
 // Book appointment
