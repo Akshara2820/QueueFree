@@ -1,4 +1,7 @@
 // Google Places API service
+// To get dynamic places, replace this with your actual Google Places API key from:
+// https://console.cloud.google.com/apis/credentials
+// Make sure Places API is enabled and billing is set up
 const GOOGLE_PLACES_API_KEY = 'AIzaSyCv3dM4Tm94cDo72dlzQFXK-Yt405rzgi0'; // Replace with your actual Google Places API key
 
 // Get user's current location
@@ -41,17 +44,16 @@ export const calculateDistance = (lat1, lng1, lat2, lng2) => {
   return R * c; // Distance in kilometers
 };
 
-// Fetch nearby places using Firebase Cloud Function (CORS-free)
+// Fetch nearby places - try Cloud Function first, fallback to direct API
 export const fetchNearbyPlaces = async (location, radius = 5000) => {
   try {
-    console.log('🌐 Calling Firebase Cloud Function for nearby places...');
+    console.log('🌐 Attempting Firebase Cloud Function for nearby places...');
 
-    // Import Firebase functions
+    // Try Firebase Cloud Function first
     const { httpsCallable } = await import('firebase/functions');
     const { functions } = await import('../firebase');
 
     const getNearbyPlaces = httpsCallable(functions, 'getNearbyPlaces');
-
     const result = await getNearbyPlaces({
       lat: location.lat,
       lng: location.lng,
@@ -85,102 +87,77 @@ export const fetchNearbyPlaces = async (location, radius = 5000) => {
 
       // Sort by distance
       return formattedPlaces.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
-    } else {
-      console.warn('No places received from Cloud Function, using mock data');
-      return generateMockNearbyPlaces(location, radius);
     }
 
-  } catch (error) {
-    console.error('❌ Error calling Firebase Cloud Function:', error);
-    console.warn('Falling back to mock data due to:', error.message);
-    return generateMockNearbyPlaces(location, radius);
+  } catch (cloudFunctionError) {
+    console.warn('⚠️ Cloud Function failed, trying direct Google Places API...', cloudFunctionError.message);
+
+    // Fallback to direct Google Places API call
+    try {
+      console.log('🌐 Calling Google Places API directly...');
+      console.log('📍 Using location:', location);
+      console.log('🔑 API Key configured:', !!GOOGLE_PLACES_API_KEY && GOOGLE_PLACES_API_KEY !== 'your-google-places-api-key');
+
+      if (!GOOGLE_PLACES_API_KEY || GOOGLE_PLACES_API_KEY === 'your-google-places-api-key') {
+        throw new Error('Google Places API key not configured. Please set a valid API key in googlePlaces.js');
+      }
+
+      const apiUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
+        `location=${location.lat},${location.lng}&` +
+        `radius=${radius}&` +
+        `type=establishment&` +
+        `key=${GOOGLE_PLACES_API_KEY}`;
+
+      console.log('🔗 API URL:', apiUrl.replace(GOOGLE_PLACES_API_KEY, '[API_KEY]'));
+
+      const response = await fetch(apiUrl);
+      console.log('📡 Response status:', response.status);
+
+      const data = await response.json();
+      console.log('📋 API Response:', data);
+
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        console.log('✅ Received places from direct API:', data.results.length);
+
+        // Format places
+        const formattedPlaces = data.results.map(place => ({
+          id: place.place_id,
+          name: place.name,
+          type: getPlaceTypeFromCategories(place.types),
+          address: place.vicinity || 'Address not available',
+          location: {
+            lat: place.geometry.location.lat,
+            lng: place.geometry.location.lng
+          },
+          distance: calculateDistance(
+            location.lat,
+            location.lng,
+            place.geometry.location.lat,
+            place.geometry.location.lng
+          ).toFixed(1),
+          rating: place.rating || 0,
+          business_status: place.business_status || 'OPERATIONAL',
+          category: place.types?.[0] || 'business'
+        }));
+
+        return formattedPlaces.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
+      } else {
+        console.error('❌ Google Places API Error:', data.status, data.error_message);
+        throw new Error(`Google Places API returned status: ${data.status}. Please check your API key and billing setup.`);
+      }
+
+    } catch (directApiError) {
+      console.error('❌ Direct Google Places API call failed:', directApiError);
+      throw directApiError;
+    }
   }
+
+  // If Cloud Function didn't return places, throw error
+  console.error('No places received from Cloud Function, and direct API failed');
+  throw new Error('Unable to fetch places. Please check Firebase Cloud Functions deployment and Google Places API key configuration.');
 };
 
-// Generate mock nearby places for testing when API is not available
-const generateMockNearbyPlaces = (location, radius) => {
-  const mockPlaces = [
-    {
-      id: 'mock_hospital_1',
-      name: 'City General Hospital',
-      type: 'Hospital',
-      address: '123 Medical Center Dr',
-      location: { lat: location.lat + 0.01, lng: location.lng + 0.01 },
-      distance: '1.2',
-      rating: 4.2,
-      business_status: 'OPERATIONAL',
-      category: 'hospital'
-    },
-    {
-      id: 'mock_restaurant_1',
-      name: 'Downtown Bistro',
-      type: 'Restaurant',
-      address: '456 Main Street',
-      location: { lat: location.lat - 0.005, lng: location.lng + 0.008 },
-      distance: '0.8',
-      rating: 4.5,
-      business_status: 'OPERATIONAL',
-      category: 'restaurant'
-    },
-    {
-      id: 'mock_bank_1',
-      name: 'National Bank',
-      type: 'Bank',
-      address: '789 Finance Ave',
-      location: { lat: location.lat + 0.008, lng: location.lng - 0.005 },
-      distance: '1.5',
-      rating: 3.8,
-      business_status: 'OPERATIONAL',
-      category: 'bank'
-    },
-    {
-      id: 'mock_salon_1',
-      name: 'Elegant Cuts Salon',
-      type: 'Salon',
-      address: '321 Beauty Blvd',
-      location: { lat: location.lat - 0.003, lng: location.lng - 0.007 },
-      distance: '0.9',
-      rating: 4.7,
-      business_status: 'OPERATIONAL',
-      category: 'salon'
-    },
-    {
-      id: 'mock_pharmacy_1',
-      name: 'Health Pharmacy',
-      type: 'Pharmacy',
-      address: '654 Health Street',
-      location: { lat: location.lat + 0.006, lng: location.lng + 0.004 },
-      distance: '1.8',
-      rating: 4.0,
-      business_status: 'OPERATIONAL',
-      category: 'pharmacy'
-    },
-    {
-      id: 'mock_gym_1',
-      name: 'Fitness Center',
-      type: 'Gym',
-      address: '987 Workout Way',
-      location: { lat: location.lat - 0.002, lng: location.lng + 0.006 },
-      distance: '1.1',
-      rating: 4.3,
-      business_status: 'OPERATIONAL',
-      category: 'gym'
-    }
-  ];
 
-  // Filter by radius and sort by distance
-  return mockPlaces
-    .filter(place => parseFloat(place.distance) <= (radius / 1000))
-    .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
-};
-
-// Get photo URL from photo reference
-const getPhotoUrl = (photoReference, maxWidth = 400) => {
-  return `https://maps.googleapis.com/maps/api/place/photo?` +
-         `maxwidth=${maxWidth}&` +
-         `photoreference=${photoReference}&` +
-         `key=${GOOGLE_PLACES_API_KEY}`;
-};
 
 
 // Convert Google Places API types to readable labels

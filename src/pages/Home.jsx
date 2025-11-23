@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Hero from '../components/Hero';
 import PlaceCard from '../components/PlaceCard';
+import { getNearbyPlaces } from '../services/nearbyPlaces';
 import { isBusinessRegistered, getBusinessQueueData, getCommunityReports, getPrediction } from '../services/firestore';
-import { calculateDistance } from '../utils/formatters';
 
 export default function Home() {
   const [places, setPlaces] = useState([]);
@@ -32,72 +32,23 @@ export default function Home() {
     }
   }, []);
 
-  // Step 2: Load places and sort by distance when location is available
+  // Step 2: Load real places from Google Places API when location is available
   useEffect(() => {
     const loadPlaces = async () => {
+      if (!userLocation) return;
+
       try {
         setLoading(true);
+        console.log('🏥 Loading places from Overpass API for location:', userLocation);
 
-        // Mock places with coordinates (replace with your database data)
-        const mockPlaces = [
-          {
-            id: 'place_1',
-            name: 'City General Hospital',
-            type: 'Hospital',
-            address: '123 Medical Center Dr, Sector 28',
-            lat: 28.4595 + 0.01, // ~1km away
-            lng: 77.0266 + 0.01,
-            category: 'hospital'
-          },
-          {
-            id: 'place_2',
-            name: 'Downtown Bistro',
-            type: 'Restaurant',
-            address: '456 Main Street, Sector 29',
-            lat: 28.4595 - 0.005, // ~0.5km away
-            lng: 77.0266 + 0.008,
-            category: 'restaurant'
-          },
-          {
-            id: 'place_3',
-            name: 'National Bank',
-            type: 'Bank',
-            address: '789 Finance Ave, Sector 30',
-            lat: 28.4595 + 0.008, // ~1km away
-            lng: 77.0266 - 0.005,
-            category: 'bank'
-          },
-          {
-            id: 'place_4',
-            name: 'Elegant Cuts Salon',
-            type: 'Salon',
-            address: '321 Beauty Blvd, Sector 31',
-            lat: 28.4595 - 0.003, // ~0.3km away
-            lng: 77.0266 - 0.007,
-            category: 'salon'
-          },
-          {
-            id: 'place_5',
-            name: 'Health Pharmacy',
-            type: 'Pharmacy',
-            address: '654 Health Street, Sector 32',
-            lat: 28.4595 + 0.006, // ~0.8km away
-            lng: 77.0266 + 0.004,
-            category: 'pharmacy'
-          },
-          {
-            id: 'place_6',
-            name: 'Fitness Center',
-            type: 'Gym',
-            address: '987 Workout Way, Sector 33',
-            lat: 28.4595 - 0.002, // ~0.2km away
-            lng: 77.0266 + 0.006,
-            category: 'gym'
-          }
-        ];
+        // Get places from Overpass API (0-5km radius)
+        const nearbyPlaces = await getNearbyPlaces(userLocation.lat, userLocation.lng, 5000); // 5km radius
+
+        console.log('✅ Received places from Overpass API:', nearbyPlaces.length);
+        console.log('🏥 Nearby places:', nearbyPlaces.map(p => p.name).join(', '));
 
         // Enrich places with queue information
-        const enrichedPlaces = await Promise.all(mockPlaces.map(async (place) => {
+        const enrichedPlaces = await Promise.all(nearbyPlaces.map(async (place) => {
           let queueInfo = {};
 
           try {
@@ -151,40 +102,26 @@ export default function Home() {
         setPlaces(enrichedPlaces);
       } catch (error) {
         console.error('Error loading places:', error);
-        setLocationError('Failed to load places. Please try again.');
+        setLocationError(`Failed to load places: ${error.message}. Please check your Google Places API configuration.`);
       } finally {
         setLoading(false);
       }
     };
 
     loadPlaces();
-  }, []);
+  }, [userLocation]);
 
-  // Step 3: Sort places by distance when user location is available
-  useEffect(() => {
-    if (!userLocation || places.length === 0) return;
-
-    const updated = places.map(place => ({
-      ...place,
-      distance: calculateDistance(
-        userLocation.lat,
-        userLocation.lng,
-        place.lat,
-        place.lng
-      )
-    }));
-
-    const sorted = updated.sort((a, b) => a.distance - b.distance);
-    setPlaces(sorted);
-  }, [userLocation]); // Only depend on userLocation, not places.length
+  // Places are already sorted by distance in fetchNearbyPlaces
 
   const filtered = places.filter(p => {
     if (activeFilter === 'All') return true;
     if (activeFilter === 'Hospitals') return p.type === 'Hospital';
     if (activeFilter === 'Salons') return p.type === 'Salon';
     if (activeFilter === 'Banks') return p.type === 'Bank';
-    if (activeFilter === 'Restaurants') return p.type === 'Restaurant';
-    if (activeFilter === 'Clinics') return p.name.toLowerCase().includes('clinic');
+    if (activeFilter === 'Restaurants') return p.type === 'Restaurant' || p.type === 'Cafe';
+    if (activeFilter === 'Markets') return p.type === 'Market' || p.type === 'Supermarket' || p.category === 'shop';
+    if (activeFilter === 'Popular Places') return ['Tourist Attraction', 'Theatre', 'Cinema', 'Museum', 'Park'].includes(p.type);
+    if (activeFilter === 'Clinics') return p.name.toLowerCase().includes('clinic') || p.type === 'Doctor';
     return true;
   });
 
@@ -195,7 +132,8 @@ export default function Home() {
         <section className="container mx-auto px-4 py-8">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600">Finding places near you...</p>
+            <p className="text-gray-600">Finding hospitals, restaurants, markets, and attractions near you...</p>
+            <p className="text-sm text-gray-500 mt-2">Using FREE OpenStreetMap data within 5km radius</p>
           </div>
         </section>
       </div>
@@ -238,7 +176,7 @@ export default function Home() {
           </div>
         )}
         <div className="flex flex-wrap gap-3 mb-8 relative z-10">
-          {['All', 'Hospitals', 'Salons', 'Banks', 'Clinics', 'Restaurants'].map(filter => (
+          {['All', 'Hospitals', 'Restaurants', 'Salons', 'Markets', 'Popular Places', 'Banks', 'Clinics'].map(filter => (
             <button
               key={filter}
               onClick={(e) => {
@@ -265,11 +203,29 @@ export default function Home() {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(place => (
-            <PlaceCard key={place.id} place={place} />
-          ))}
-        </div>
+        {filtered.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map(place => (
+              <PlaceCard key={place.id} place={place} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="text-gray-500 mb-4">
+              <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No places found</h3>
+            <p className="text-gray-600">
+              {activeFilter === 'All'
+                ? "No places found in your area. Try refreshing or check your location permissions."
+                : `No ${activeFilter.toLowerCase()} found. Try a different category.`
+              }
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );

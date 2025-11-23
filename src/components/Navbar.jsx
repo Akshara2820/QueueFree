@@ -7,7 +7,6 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
   const [cityName, setCityName] = useState('');
   const dropdownRef = useRef(null);
 
@@ -42,70 +41,34 @@ export default function Navbar() {
     };
   }, []);
 
-  // Fetch location name with fallback options
-  const fetchLocationName = async (lat, lng) => {
-    try {
-      console.log('🌐 Attempting Firebase Cloud Function for reverse geocoding...');
+  // Simple MVP: Direct coordinate-based location detection (no external APIs)
+  const fetchLocationName = (lat, lng) => {
+    console.log('🎯 MVP Location Detection - Checking coordinates:', { lat, lng });
 
-      // Try Firebase Cloud Function first
-      const { httpsCallable } = await import('firebase/functions');
-      const { functions } = await import('../firebase');
-
-      const getLocationName = httpsCallable(functions, 'getLocationName');
-      const result = await getLocationName({ lat, lng });
-
-      console.log('📍 Received location name from Cloud Function:', result.data.cityName);
-      return result.data.cityName || "Unknown Location";
-
-    } catch (cloudFunctionError) {
-      console.warn('⚠️ Cloud Function failed, trying direct Nominatim API...', cloudFunctionError.message);
-
-      try {
-        // Fallback to direct Nominatim API call
-        console.log('🌐 Calling Nominatim API directly for coordinates:', lat, lng);
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`,
-          {
-            headers: {
-              'User-Agent': 'QueueFree-App/1.0'
-            }
-          }
-        );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        console.log('📋 Nominatim API Response:', data);
-
-        // Extract location name
-        const locationName = data.address?.city ||
-                            data.address?.town ||
-                            data.address?.village ||
-                            data.address?.suburb ||
-                            data.address?.state_district ||
-                            data.address?.state ||
-                            data.display_name?.split(',')[0] ||
-                            "Unknown Location";
-
-        console.log('🏷️ Extracted location name:', locationName);
-        return locationName;
-
-      } catch (directApiError) {
-        console.error('❌ Both Cloud Function and direct API failed:', directApiError);
-
-        // Final fallback - mock location based on coordinates
-        if (lat >= 26.3 && lat <= 27.0 && lng >= 80.2 && lng <= 81.1) {
-          return "Kanpur, Uttar Pradesh";
-        } else if (lat >= 18.9 && lat <= 19.3 && lng >= 72.7 && lng <= 73.0) {
-          return "Mumbai, Maharashtra";
-        } else if (lat >= 28.4 && lat <= 28.9 && lng >= 76.8 && lng <= 77.4) {
-          return "Delhi, India";
-        } else {
-          return `${lat.toFixed(2)}°N, ${lng.toFixed(2)}°E`;
-        }
-      }
+    // Gurgaon coordinates: ~28.40°N to 28.55°N, ~76.90°E to 77.20°E
+    if (lat >= 28.40 && lat <= 28.55 && lng >= 76.90 && lng <= 77.20) {
+      console.log('📍 Detected: Gurgaon, Haryana');
+      return Promise.resolve("Gurgaon, Haryana");
+    }
+    // Delhi coordinates: ~28.55°N to 28.80°N, ~77.00°E to 77.40°E
+    else if (lat >= 28.55 && lat <= 28.80 && lng >= 77.00 && lng <= 77.40) {
+      console.log('📍 Detected: Delhi, India');
+      return Promise.resolve("Delhi, India");
+    }
+    // Kanpur coordinates: ~26.35°N to 26.55°N, ~80.20°E to 80.45°E
+    else if (lat >= 26.35 && lat <= 26.55 && lng >= 80.20 && lng <= 80.45) {
+      console.log('📍 Detected: Kanpur, Uttar Pradesh');
+      return Promise.resolve("Kanpur, Uttar Pradesh");
+    }
+    // Mumbai coordinates: ~18.85°N to 19.35°N, ~72.65°E to 73.05°E
+    else if (lat >= 18.85 && lat <= 19.35 && lng >= 72.65 && lng <= 73.05) {
+      console.log('📍 Detected: Mumbai, Maharashtra');
+      return Promise.resolve("Mumbai, Maharashtra");
+    }
+    // Add more cities as needed
+    else {
+      console.log('📍 Unknown location, showing coordinates');
+      return Promise.resolve(`${lat.toFixed(2)}°N, ${lng.toFixed(2)}°E`);
     }
   };
 
@@ -115,7 +78,6 @@ export default function Navbar() {
     if (location) {
       const parsedLocation = JSON.parse(location);
       console.log('📍 User Location from localStorage:', parsedLocation);
-      setUserLocation(parsedLocation);
 
       // Fetch the actual city name using Nominatim
       fetchLocationName(parsedLocation.lat, parsedLocation.lng)

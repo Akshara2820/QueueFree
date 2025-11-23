@@ -113,6 +113,17 @@ export default function PlaceCard({ place }) {
                         <span className="mr-1">{icon}</span>
                         {badge}
                     </span>
+                    {/* Open/Closed Status */}
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${
+                        place.business_status === 'OPERATIONAL'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                        <span className="mr-1">
+                            {place.business_status === 'OPERATIONAL' ? '🟢' : '🔴'}
+                        </span>
+                        {place.business_status === 'OPERATIONAL' ? 'Open' : 'Closed'}
+                    </span>
                 </div>
 
                 <div className="flex gap-2">
